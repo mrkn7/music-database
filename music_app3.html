@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>STAT 311 - Music DB (Final Production)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; 
+            height: 100vh; 
+            background: #f0f2f5; 
+            display: flex; 
+            overflow: hidden; /* Sayfa kaymasını engelle, paneller kaysın */
+        }
+
+        /* SOL PANEL: LİSTE VE ARAMA */
+        .sidebar {
+            width: 350px;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .search-box {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            background: #fff;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box; /* Padding taşmasını önler */
+            outline: none;
+            transition: 0.3s;
+        }
+        .search-box input:focus { border-color: #3498db; }
+
+        .artist-list {
+            flex: 1;
+            overflow-y: auto; /* Sadece liste kaydırılsın */
+        }
+
+        .list-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f5f5f5;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .list-item:hover { background-color: #f8f9fa; }
+        .list-item.active { background-color: #e3f2fd; border-left: 4px solid #2196f3; }
+        
+        .list-item-img {
+            width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #ddd;
+        }
+        .list-info h4 { margin: 0; font-size: 0.95rem; color: #333; }
+        .list-info p { margin: 0; font-size: 0.8rem; color: #777; }
+
+        /* SAĞ PANEL: DETAY GÖRÜNÜMÜ */
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .card {
+            background: white;
+            width: 100%;
+            max-width: 800px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            padding: 40px;
+            display: none; /* Seçim yapılana kadar gizli */
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card-header { display: flex; gap: 30px; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #f0f0f0; padding-bottom: 20px; }
+        .card-img { 
+            width: 150px; height: 150px; border-radius: 50%; object-fit: cover; 
+            border: 5px solid #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.1); 
+        }
+        
+        .card-title h1 { margin: 0; font-size: 2.5rem; color: #2c3e50; }
+        .card-title .meta { color: #7f8c8d; margin-top: 5px; font-size: 1.1rem; }
+
+        .badge { padding: 6px 14px; border-radius: 20px; color: white; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; display: inline-block; margin-top: 10px; }
+        .badge-band { background: #8e44ad; }
+        .badge-solo { background: #27ae60; }
+
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+        .stat-box { background: #f8f9fa; padding: 20px; border-radius: 12px; }
+        .stat-label { display: block; font-size: 0.85rem; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .stat-value { font-size: 1.2rem; font-weight: 800; color: #333; }
+        .stat-value.money { color: #2ecc71; }
+
+        .raw-data-warning { font-size: 0.8rem; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="search-box">
+        <h3 style="margin-top:0;">🎵 Music DB Explorer</h3>
+        <input type="text" id="searchInput" placeholder="Search Artist (121 Artist)..." onkeyup="filterList()">
+    </div>
+    <div class="artist-list" id="artistListContainer">
+        <div style="padding:20px; color:#666;">Veriler Yükleniyor...</div>
+    </div>
+</div>
+
+<div class="main-content">
+    
+    <div id="welcomeMessage" style="text-align:center; color:#888; margin-top:100px;">
+        <h2>Select an artist from the database</h2>
+        <p>You can choose from 121 artists from the list on the left.</p>
+    </div>
+
+    <div class="card" id="detailCard">
+        <div class="card-header">
+            <img id="ui_photo" class="card-img" src="" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3844/3844724.png'">
+            <div class="card-title">
+                <h1 id="ui_name">Sanatçı Adı</h1>
+                <div class="meta" id="ui_origin_year">United Kingdom • 1960</div>
+                <div id="ui_badge"></div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="stat-box">
+                <span class="stat-label">Genre</span>
+                <span class="stat-value" id="ui_genre">Rock</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Actıve Term</span>
+                <span class="stat-value" id="ui_active">1960-1970</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Certıfıed Sales(TCU)</span>
+                <span class="stat-value" id="ui_tcu">290 Mıllıon</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Estımated Total Sale</span>
+                <span class="stat-value money" id="ui_sales">600 Mıllıon</span>
+            </div>
+        </div>
+
+        <div>
+            <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;">Database Object Summary</h3>
+            <pre id="ui_debug" style="background:#2d3436; color:#81ecec; padding:15px; border-radius:8px; font-size:0.85rem; overflow-x:auto;">...</pre>
+        </div>
+        
+        <div class="raw-data-warning">
+          * Data Source: /data/best_selling_artists.csv (Real-time Parsed)<br>
+          * Data Cleaning: JS Runtime Cleaning has been applied.<br>
+          * All Codes, images, parsing exc. prepared by 
+            <a href="https://stat.metu.edu.tr/en/mehmet-ali-erkan" target="_blank">
+                 Mehmet Ali Erkan
+                </a>
+        </div>
+        <div class="raw-data-warning">
+    </div>
+</div>
+
+<script>
+    // --- 1. VERİ MODELİ (Nesne Tabanlı Yaklaşım) ---
+    // Derste anlatılan: "Logical View"
+    class Artist {
+        constructor(id, name, country, period, year, genre, tcu, sales) {
+            this.id = id;
+            this.name = name;
+            this.country = country;
+            this.period = period;
+            this.year = year;
+            this.genre = genre;
+            this.tcu = tcu;
+            this.sales = sales;
+        }
+
+        // Encapsulation: Resim yolunu dinamik üretir
+        getPhotoUrl() { return `images/${this.id}.jpg`; }
+
+        // Helper: Band mi Solo mu?
+        getType() {
+            const bands = ["The Beatles", "Queen", "Pink Floyd", "Led Zeppelin", "AC/DC", "Metallica", "The Rolling Stones", "Nirvana", "Eagles", "U2", "Aerosmith", "Guns N' Roses", "Coldplay", "Maroon 5", "Linkin Park", "Red Hot Chili Peppers", "Fleetwood Mac", "ABBA", "Bee Gees", "The Police", "Kiss", "Genesis", "Dire Straits", "Bon Jovi"];
+            if (this.name.startsWith("The ") || bands.includes(this.name)) return "Band";
+            return "Solo";
+        }
+    }
+
+    let allArtists = []; // 121 Sanatçıyı tutacak Array
+
+    // --- 2. VERİ YÜKLEME VE İŞLEME (ETL) ---
+    document.addEventListener('DOMContentLoaded', () => {
+        fetch('data/best_selling_artists.csv')
+            .then(res => {
+                if(!res.ok) throw new Error("CSV bulunamadı! Lütfen data klasörünü kontrol edin.");
+                return res.text();
+            })
+            .then(csvText => {
+                processCSV(csvText);
+            })
+            .catch(err => {
+                document.getElementById('artistListContainer').innerHTML = `<div style="color:red; padding:20px;">Hata: ${err.message}<br>Not: Live Server ile çalıştırdığınızdan emin olun.</div>`;
+            });
+    });
+
+    function processCSV(csvText) {
+        // Regex ile CSV Parsing: Tırnak içindeki virgülleri görmezden gelmek için
+        // Örn: "Rock, Pop" gibi alanları doğru ayırmak için.
+        const regex = /(".*?"|[^",\s]+)(?=\s*,|\s*$)/g;
+        
+        const lines = csvText.split('\n');
+        const listContainer = document.getElementById('artistListContainer');
+        listContainer.innerHTML = ""; // Yükleniyor yazısını temizle
+
+        let count = 0;
+        
+        // Başlığı (row 0) atla, i=1'den başla
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            // --- CSV PARSER ---
+            // Basit split(',') kullanmıyoruz çünkü bazı alanlarda virgül olabilir.
+            // Regex yerine daha basit ve güvenilir bir yöntem: 
+            // Satırı parçalarken tırnak kurallarına dikkat eden bir mantık.
+            // Ancak bu ders için basit split yeterli olmayabilir, o yüzden regex veya clean split kullanacağız.
+            
+            // Not: Kullanıcı "ArtistCountry..." yapışık dedi ama CSV'de virgüller var.
+            // Biz virgülle ayıracağız.
+            const cols = parseCSVLine(line);
+
+            if (cols.length < 6) continue; // Bozuk satırları atla
+
+            // --- DATA CLEANING (Pandas işlevinin JS karşılığı) ---
+            const id = i;
+            const name = cleanText(cols[0]);
+            const country = cleanText(cols[1]);
+            const period = cleanText(cols[2]);
+            const year = cleanText(cols[3]);
+            const genre = cleanText(cols[4]);
+            const tcu = cleanText(cols[5]);
+            
+            // KİRLİ VERİ TEMİZLİĞİ: "600 million500 million" -> "600 million"
+            let rawSales = cleanText(cols[6]);
+            let cleanSales = rawSales;
+            // Eğer içinde iki kere 'million' geçiyorsa veya sayılar bitişikse
+            const salesMatch = rawSales.match(/(\d+(\.\d+)?\s*million)/i);
+            if (salesMatch) {
+                cleanSales = salesMatch[0]; // İlk bulunanı al (600 million)
+            }
+
+            // Nesne Oluştur
+            const artist = new Artist(id, name, country, period, year, genre, tcu, cleanSales);
+            allArtists.push(artist);
+
+            // Listeye Ekle (DOM Manipulation)
+            createListItem(artist);
+            count++;
+        }
+    }
+
+    // Tırnak içindeki virgülleri yöneten basit parser
+    function parseCSVLine(text) {
+        let result = [];
+        let cur = '';
+        let inQuote = false;
+        for (let i = 0; i < text.length; i++) {
+            let char = text[i];
+            if (char === '"') { inQuote = !inQuote; continue; }
+            if (char === ',' && !inQuote) { result.push(cur); cur = ''; }
+            else { cur += char; }
+        }
+        result.push(cur);
+        return result;
+    }
+
+    function cleanText(text) {
+        if (!text) return "-";
+        return text.trim();
+    }
+
+    // --- 3. UI OLUŞTURMA ---
+    function createListItem(artist) {
+        const container = document.getElementById('artistListContainer');
+        
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.dataset.id = artist.id; // Tıklama için ID sakla
+        div.onclick = () => showDetail(artist.id);
+
+        div.innerHTML = `
+            <img src="${artist.getPhotoUrl()}" class="list-item-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3844/3844724.png'">
+            <div class="list-info">
+                <h4>${artist.name}</h4>
+                <p>${artist.country}</p>
+            </div>
+        `;
+        container.appendChild(div);
+    }
+
+    function showDetail(id) {
+        // Tüm list items'dan active sınıfını kaldır
+        document.querySelectorAll('.list-item').forEach(el => el.classList.remove('active'));
+        // Seçilene ekle
+        document.querySelector(`.list-item[data-id='${id}']`).classList.add('active');
+
+        // Hoşgeldin mesajını gizle, kartı göster
+        document.getElementById('welcomeMessage').style.display = 'none';
+        const card = document.getElementById('detailCard');
+        card.style.display = 'block';
+
+        // Veriyi Bul
+        const artist = allArtists.find(a => a.id === id);
+
+        // UI Doldur
+        document.getElementById('ui_name').innerText = artist.name;
+        document.getElementById('ui_origin_year').innerText = `${artist.country} • Starting: ${artist.year}`;
+        document.getElementById('ui_genre').innerText = artist.genre;
+        document.getElementById('ui_active').innerText = artist.period;
+        document.getElementById('ui_tcu').innerText = artist.tcu;
+        document.getElementById('ui_sales').innerText = artist.sales;
+        
+        const img = document.getElementById('ui_photo');
+        img.src = artist.getPhotoUrl();
+
+        // Badge (Polimorfizm Simülasyonu)
+        const badgeDiv = document.getElementById('ui_badge');
+        if (artist.getType() === "Band") {
+            badgeDiv.innerHTML = "<span class='badge badge-band'>Musıc Band</span>";
+        } else {
+            badgeDiv.innerHTML = "<span class='badge badge-solo'>Solo Artıst</span>";
+        }
+
+        // Debug (JSON gösterimi) - Derste nesne yapısını göstermek için
+        document.getElementById('ui_debug').innerText = JSON.stringify(artist, null, 2);
+    }
+
+    // --- 4. ARAMA FONKSİYONU ---
+    function filterList() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const listContainer = document.getElementById('artistListContainer');
+        listContainer.innerHTML = ""; // Temizle
+
+        const filtered = allArtists.filter(a => a.name.toLowerCase().includes(query));
+        
+        filtered.forEach(artist => createListItem(artist));
+
+        if(filtered.length === 0) {
+            listContainer.innerHTML = "<div style='padding:20px; text-align:center; color:#999;'>Sonuç bulunamadı.</div>";
+        }
+    }
+</script>
+
+</body>
+</html>
